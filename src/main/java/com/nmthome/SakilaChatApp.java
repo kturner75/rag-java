@@ -9,7 +9,6 @@ import java.sql.SQLException;
 public class SakilaChatApp {
   private static JTextArea chatArea;
   private static JTextField inputField;
-  private static JScrollPane scrollPane;
 
   public static void main(String[] args) {
     SwingUtilities.invokeLater(SakilaChatApp::createAndShowGUI);
@@ -29,7 +28,7 @@ public class SakilaChatApp {
     chatArea.setWrapStyleWord(true);
     chatArea.setMargin(new Insets(15, 15, 15, 15));
 
-    scrollPane = new JScrollPane(chatArea);
+    JScrollPane scrollPane = new JScrollPane(chatArea);
     DefaultCaret caret = (DefaultCaret) chatArea.getCaret();
     caret.setUpdatePolicy(DefaultCaret.ALWAYS_UPDATE); // auto-scroll
 
@@ -41,7 +40,7 @@ public class SakilaChatApp {
     JButton sendButton = new JButton("Send");
     sendButton.setFont(new Font("Segoe UI", Font.BOLD, 16));
     sendButton.setBackground(new Color(0, 122, 255));
-    sendButton.setForeground(Color.WHITE);
+    sendButton.setForeground(Color.BLACK);
     sendButton.setFocusPainted(false);
 
     inputPanel.add(inputField, BorderLayout.CENTER);
@@ -53,8 +52,11 @@ public class SakilaChatApp {
     frame.add(inputPanel, BorderLayout.SOUTH);
 
     // === Welcome message ===
-    appendMessage("Sakila Assistant", "Hello! I'm your private data analyst.\n" +
-        "Ask me anything about the Sakila database — in plain English! 🚀\n\n", Color.BLUE);
+    appendMessage("Sakila Assistant", """
+        Hello! I'm your private data analyst.
+        Ask me anything about the Sakila database — in plain English! 🚀
+        
+        """, Color.BLUE);
 
     // === Actions ===
     sendButton.addActionListener(e -> sendMessage());

@@ -9,36 +9,73 @@ public class SakilaChat {
   private static final String USER = "root";        // ← change if needed
   private static final String PASS = "cft6yhn"; // ← change!
 
+  // Inside SakilaChat.java — replace the old askQuestion method
   public static String askQuestion(String question) throws SQLException {
-    // Step 1: Generate SQL
-    String sql = SqlGenerator.generateSql(question);
-    if (sql == null) {
-      return "I couldn't generate valid SQL for that question.";
-    }
+    String sql;
+    String lastError = null;
 
-    // Step 2: Execute safely
-    String markdownTable = executeSql(sql);
-    if (markdownTable == null) {
-      return "The query ran but returned no data.";
-    }
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      sql = SqlGenerator.generateSql(
+          attempt == 1 ?
+              question :
+              question + "\n\nPrevious SQL failed with error: " + lastError +
+                  "\nFix it and return ONLY the corrected ```sql block."
+      );
 
-    // Step 3: Ask Ollama to explain the results naturally
-    String explanationPrompt = """
+      if (sql == null) {
+        if (attempt == 3) return "I tried 3 times but couldn't generate valid SQL. Try rephrasing your question.";
+        continue;
+      }
+
+      String result = executeSqlSafely(sql);
+      if (result != null) {
+        // Success! → explain results
+        String explanationPrompt = """
             You are a friendly data analyst.
-            The user asked: "%s"
-            
-            Here are the query results (first rows shown):
+            User question: "%s"
+            Query results (first rows):
             
             %s
             
-            Give a clear, concise, natural-language answer.
-            Include key numbers and insights.
-            """.formatted(question, markdownTable);
+            Give a clear, insightful answer in plain English.
+            """.formatted(question, result);
 
-    return OllamaClient.ask(explanationPrompt, "llama3.1:8b");
+        return OllamaClient.ask(explanationPrompt, "llama3.1:8b");
+      }
+
+      // Failed → capture error for next attempt
+      lastError = executeSqlSafely(sql); // returns error message if null result
+      if (lastError == null) lastError = "Unknown database error";
+    }
+
+    return "I couldn't execute a working query after 3 attempts. The last error was: " + lastError;
   }
 
-  private static String executeSql(String sql) throws SQLException {
+  static String normalizeQuestion(String question) {
+    // Sakila-specific synonyms and common-sense mappings
+    return question.toLowerCase()
+        .replace("movies", "films")
+        .replace("movie", "film")
+        .replace("dramas", "drama")           // category is exactly "Drama"
+        .replace("comedies", "comedy")
+        .replace("horror films", "films in the Horror category")
+        .replace("action films", "films in the Action category")
+        .replace("revenue", "payment amounts")
+        .replace("sales", "payment amounts")
+        .replace("customers who rented", "customers with rentals")
+        .replace("most rented", "with the highest rental count")
+        .replace("biggest spender", "highest total payment amount")
+        .replace("best customer", "customer with highest total payments")
+        .replace("top customer", "customer with highest total payments")
+        // Make the first letter uppercase so the prompt reads naturally
+        .replaceFirst("^.", String.valueOf(Character.toUpperCase(question.charAt(0))));
+  }
+
+  private static String executeSqlSafely(String sql) {
+    if (!isSafeSql(sql)) {
+      return "SECURITY BLOCK: This query contains dangerous keywords (DROP, DELETE, etc.) and was blocked.";
+    }
+
     try (Connection conn = DriverManager.getConnection(JDBC_URL, USER, PASS);
          Statement stmt = conn.createStatement();
          ResultSet rs = stmt.executeQuery(sql)) {
@@ -73,6 +110,18 @@ public class SakilaChat {
       }
 
       return table.toString();
+
+    } catch (SQLException e) {
+      return e.getMessage();  // this becomes lastError for next attempt
     }
+  }
+
+  private static boolean isSafeSql(String sql) {
+    String lower = sql.toLowerCase();
+    String[] dangerous = {"drop ", "delete ", "insert ", "update ", "create ", "alter ", "truncate ", "grant ", "revoke "};
+    for (String kw : dangerous) {
+      if (lower.contains(kw)) return false;
+    }
+    return true;
   }
 }

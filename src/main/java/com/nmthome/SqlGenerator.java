@@ -1,7 +1,15 @@
 package com.nmthome;
 
+import static com.nmthome.SakilaChat.normalizeQuestion;
+
 public class SqlGenerator {
 
+  private static final String SYNONYM_HEADER = """
+          Note: In this database, "movie" = "film", "customer who rented" = "customer with rental records",
+          "revenue/sales/money made" = sum of payment.amount, "most popular" = highest rental count.
+          Treat these as identical.
+      
+      """;
   private static final String SAKILA_PROMPT = """
       You are an expert MariaDB analyst for the Sakila database.
       Use ONLY the exact tables and columns below — never guess or hallucinate names.
@@ -21,7 +29,8 @@ public class SqlGenerator {
       """;
 
   public static String generateSql(String userQuestion) {
-    String prompt = SAKILA_PROMPT.formatted(SchemaLoader.getSchema(), userQuestion);
+    String normalized = normalizeQuestion(userQuestion);
+    String prompt = SYNONYM_HEADER + SAKILA_PROMPT.formatted(SchemaLoader.getSchema(), normalized);
     String raw = OllamaClient.ask(prompt, "llama3.1:8b");
     return extractSql(raw);
   }
